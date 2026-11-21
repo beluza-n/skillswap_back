@@ -2,6 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
@@ -28,6 +29,11 @@ class City(models.Model):
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     sort = models.PositiveSmallIntegerField(default=0)
+    color = models.CharField(
+        max_length=7,
+        default="#F3F3F3",
+        validators=[RegexValidator(r"^#[0-9A-Fa-f]{6}$", "Укажите цвет в формате #RRGGBB.")],
+    )
 
     class Meta:
         ordering = ["sort", "id"]

@@ -20,7 +20,7 @@ class CityAdmin(admin.ModelAdmin):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "sort"]
+    list_display = ["id", "name", "sort", "color"]
 
 
 @admin.register(Subcategory)

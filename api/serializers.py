@@ -32,10 +32,11 @@ class CitySerializer(serializers.ModelSerializer):
 class SubcategorySerializer(serializers.ModelSerializer):
     category_id = serializers.IntegerField(read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True)
+    color = serializers.CharField(source="category.color", read_only=True)
 
     class Meta:
         model = Subcategory
-        fields = ["id", "name", "category_id", "category_name", "sort"]
+        fields = ["id", "name", "category_id", "category_name", "color", "sort"]
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -43,7 +44,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ["id", "name", "sort", "subcategories"]
+        fields = ["id", "name", "sort", "color", "subcategories"]
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
@@ -105,6 +106,7 @@ class SkillImageSerializer(serializers.ModelSerializer):
 class SkillOfferSerializer(serializers.ModelSerializer):
     author = UserPublicSerializer(read_only=True)
     subcategory = SubcategorySerializer(read_only=True)
+    color = serializers.CharField(source="subcategory.category.color", read_only=True)
     images = SkillImageSerializer(many=True, read_only=True)
     likes_count = serializers.SerializerMethodField()
     is_favorite_by_me = serializers.SerializerMethodField()
@@ -113,7 +115,7 @@ class SkillOfferSerializer(serializers.ModelSerializer):
     class Meta:
         model = SkillOffer
         fields = [
-            "id", "author", "subcategory", "title", "description",
+            "id", "author", "subcategory", "color", "title", "description",
             "images", "created_at", "likes_count",
             "is_favorite_by_me", "exchange_offered_by_me",
         ]
@@ -132,11 +134,12 @@ class SkillOfferSerializer(serializers.ModelSerializer):
 
 class UserSkillSerializer(serializers.ModelSerializer):
     subcategory = SubcategorySerializer(read_only=True)
+    color = serializers.CharField(source="subcategory.category.color", read_only=True)
     images = SkillImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = SkillOffer
-        fields = ["title", "description", "subcategory", "images", "created_at"]
+        fields = ["title", "description", "subcategory", "color", "images", "created_at"]
 
 
 class UserCardSerializer(UserPublicSerializer):
