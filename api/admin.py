@@ -8,8 +8,8 @@ from .models import (
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ["user", "name", "city", "gender"]
-    search_fields = ["user__email", "name"]
+    list_display = ["user", "mock_id", "name", "city", "gender"]
+    search_fields = ["user__email", "mock_id", "name"]
     list_filter = ["gender", "city"]
 
 

@@ -65,6 +65,7 @@ class Profile(models.Model):
         UNSPECIFIED = "unspecified", "Не указан"
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, related_name="profile", on_delete=models.CASCADE)
+    mock_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
     name = models.CharField(max_length=150)
     birth_date = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=12, choices=Gender.choices, default=Gender.UNSPECIFIED)

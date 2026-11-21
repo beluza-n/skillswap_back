@@ -2,8 +2,10 @@ import os
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-change-this-key-before-deploy")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 if not DEBUG and (SECRET_KEY == "dev-only-change-this-key-before-deploy" or SECRET_KEY.startswith("REPLACE_")):

@@ -2,3 +2,5 @@ Django>=5.2,<5.3
 djangorestframework>=3.16,<3.17
 django-cors-headers>=4.7,<5
 Pillow>=11,<12
+openpyxl>=3.1,<4
+python-dotenv>=1,<2
