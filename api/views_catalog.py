@@ -6,7 +6,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import Category, City, ExchangeRequest, Favorite, SkillOffer, Subcategory
-from .serializers import CategorySerializer, CitySerializer, SubcategorySerializer, UserCardSerializer
+from .serializers import (
+    CategorySerializer, CitySerializer, SubcategorySerializer,
+    UserDetailSerializer, UserListSerializer,
+)
 
 
 def skill_queryset():
@@ -23,20 +26,21 @@ def skill_queryset():
     )
 
 
-def skill_context(request):
+def skill_context(request, include_exchange=True):
     context = {"request": request, "favorite_user_ids": set(), "exchange_user_ids": set()}
     if request.user.is_authenticated:
         context["favorite_user_ids"] = set(
             Favorite.objects.filter(owner=request.user).values_list("target_user_id", flat=True)
         )
-        context["exchange_user_ids"] = set(
-            ExchangeRequest.objects.filter(sender=request.user).values_list("target_user_id", flat=True)
-        )
+        if include_exchange:
+            context["exchange_user_ids"] = set(
+                ExchangeRequest.objects.filter(sender=request.user).values_list("target_user_id", flat=True)
+            )
     return context
 
 
-def user_queryset():
-    return (
+def user_queryset(with_images=False):
+    rows = (
         User.objects.filter(is_active=True, skill_offer__isnull=False)
         .select_related(
             "profile", "profile__city", "skill_offer",
@@ -45,10 +49,12 @@ def user_queryset():
         .prefetch_related(
             "profile__wanted_subcategories",
             "profile__wanted_subcategories__category",
-            "skill_offer__images",
         )
         .annotate(likes_count_db=Count("favorites_received", distinct=True))
     )
+    if with_images:
+        rows = rows.prefetch_related("skill_offer__images")
+    return rows
 
 
 @api_view(["GET"])
@@ -77,13 +83,15 @@ def subcategories(request):
 @permission_classes([AllowAny])
 def users(request):
     rows = user_queryset().order_by("-date_joined", "-id")
-    return Response(UserCardSerializer(rows, many=True, context=skill_context(request)).data)
+    return Response(UserListSerializer(
+        rows, many=True, context=skill_context(request, include_exchange=False)
+    ).data)
 
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def user_detail(request, user_id):
-    user = get_object_or_404(user_queryset(), pk=user_id)
-    return Response(UserCardSerializer(user, context=skill_context(request)).data)
+    user = get_object_or_404(user_queryset(with_images=True), pk=user_id)
+    return Response(UserDetailSerializer(user, context=skill_context(request)).data)
 
 

@@ -39,6 +39,15 @@ class SubcategorySerializer(serializers.ModelSerializer):
         fields = ["id", "name", "category_id", "category_name", "color", "sort"]
 
 
+class SubcategoryListSerializer(serializers.ModelSerializer):
+    category_id = serializers.IntegerField(read_only=True)
+    color = serializers.CharField(source="category.color", read_only=True)
+
+    class Meta:
+        model = Subcategory
+        fields = ["id", "name", "category_id", "color"]
+
+
 class CategorySerializer(serializers.ModelSerializer):
     subcategories = SubcategorySerializer(many=True, read_only=True)
 
@@ -49,7 +58,6 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class UserPublicSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="profile.name", read_only=True)
-    birth_date = serializers.DateField(source="profile.birth_date", read_only=True)
     age = serializers.SerializerMethodField()
     gender = serializers.CharField(source="profile.gender", read_only=True)
     city = serializers.SerializerMethodField()
@@ -62,7 +70,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "name", "birth_date", "age", "gender", "city",
+            "id", "name", "age", "gender", "city",
             "about", "avatar_url", "wanted_subcategories",
         ]
 
@@ -83,10 +91,13 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
 
 class UserPrivateSerializer(UserPublicSerializer):
+    birth_date = serializers.DateField(source="profile.birth_date", read_only=True)
     has_unread_notifications = serializers.SerializerMethodField()
 
     class Meta(UserPublicSerializer.Meta):
-        fields = UserPublicSerializer.Meta.fields + ["email", "has_unread_notifications"]
+        fields = UserPublicSerializer.Meta.fields + [
+            "email", "birth_date", "has_unread_notifications",
+        ]
 
     def get_has_unread_notifications(self, obj):
         return obj.notifications.filter(read_at__isnull=True).exists()
@@ -109,15 +120,15 @@ class SkillOfferSerializer(serializers.ModelSerializer):
     color = serializers.CharField(source="subcategory.category.color", read_only=True)
     images = SkillImageSerializer(many=True, read_only=True)
     likes_count = serializers.SerializerMethodField()
-    is_favorite_by_me = serializers.SerializerMethodField()
-    exchange_offered_by_me = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    exchange_offered = serializers.SerializerMethodField()
 
     class Meta:
         model = SkillOffer
         fields = [
             "id", "author", "subcategory", "color", "title", "description",
-            "images", "created_at", "likes_count",
-            "is_favorite_by_me", "exchange_offered_by_me",
+            "images", "likes_count",
+            "is_liked", "exchange_offered",
         ]
 
     def get_likes_count(self, obj):
@@ -125,10 +136,10 @@ class SkillOfferSerializer(serializers.ModelSerializer):
             return obj.likes_count_db
         return obj.author.favorites_received.count()
 
-    def get_is_favorite_by_me(self, obj):
+    def get_is_liked(self, obj):
         return obj.author_id in self.context.get("favorite_user_ids", set())
 
-    def get_exchange_offered_by_me(self, obj):
+    def get_exchange_offered(self, obj):
         return obj.author_id in self.context.get("exchange_user_ids", set())
 
 
@@ -139,18 +150,34 @@ class UserSkillSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SkillOffer
-        fields = ["title", "description", "subcategory", "color", "images", "created_at"]
+        fields = ["title", "description", "subcategory", "color", "images"]
 
 
-class UserCardSerializer(UserPublicSerializer):
-    skill_offer = UserSkillSerializer(read_only=True)
+class UserSkillListSerializer(serializers.ModelSerializer):
+    subcategory_id = serializers.IntegerField(read_only=True)
+    category_id = serializers.IntegerField(source="subcategory.category_id", read_only=True)
+    color = serializers.CharField(source="subcategory.category.color", read_only=True)
+
+    class Meta:
+        model = SkillOffer
+        fields = ["title", "subcategory_id", "category_id", "color"]
+
+
+class UserListSerializer(UserPublicSerializer):
+    city_id = serializers.IntegerField(source="profile.city_id", read_only=True)
+    date_joined = serializers.DateTimeField(read_only=True)
+    wanted_subcategories = SubcategoryListSerializer(
+        source="profile.wanted_subcategories", many=True, read_only=True
+    )
+    skill_offer = UserSkillListSerializer(read_only=True)
     likes_count = serializers.SerializerMethodField()
-    is_favorite_by_me = serializers.SerializerMethodField()
-    exchange_offered_by_me = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
 
     class Meta(UserPublicSerializer.Meta):
-        fields = UserPublicSerializer.Meta.fields + [
-            "skill_offer", "likes_count", "is_favorite_by_me", "exchange_offered_by_me",
+        fields = [
+            "id", "name", "age", "gender", "city", "city_id", "about", "avatar_url",
+            "date_joined", "wanted_subcategories", "skill_offer", "likes_count",
+            "is_liked",
         ]
 
     def get_likes_count(self, obj):
@@ -158,10 +185,30 @@ class UserCardSerializer(UserPublicSerializer):
             return obj.likes_count_db
         return obj.favorites_received.count()
 
-    def get_is_favorite_by_me(self, obj):
+    def get_is_liked(self, obj):
         return obj.pk in self.context.get("favorite_user_ids", set())
 
-    def get_exchange_offered_by_me(self, obj):
+
+class UserDetailSerializer(UserPublicSerializer):
+    skill_offer = UserSkillSerializer(read_only=True)
+    likes_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    exchange_offered = serializers.SerializerMethodField()
+
+    class Meta(UserPublicSerializer.Meta):
+        fields = UserPublicSerializer.Meta.fields + [
+            "skill_offer", "likes_count", "is_liked", "exchange_offered",
+        ]
+
+    def get_likes_count(self, obj):
+        if hasattr(obj, "likes_count_db"):
+            return obj.likes_count_db
+        return obj.favorites_received.count()
+
+    def get_is_liked(self, obj):
+        return obj.pk in self.context.get("favorite_user_ids", set())
+
+    def get_exchange_offered(self, obj):
         return obj.pk in self.context.get("exchange_user_ids", set())
 
 

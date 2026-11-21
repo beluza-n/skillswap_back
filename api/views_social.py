@@ -5,7 +5,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import ExchangeRequest, Favorite, Notification
-from .serializers import NotificationSerializer, UserCardSerializer
+from .serializers import NotificationSerializer, UserListSerializer
 from .views_catalog import skill_context, user_queryset
 
 
@@ -18,7 +18,9 @@ def favorites(request):
     )
     rows = {user.pk: user for user in user_queryset().filter(pk__in=target_ids)}
     ordered = [rows[user_id] for user_id in target_ids if user_id in rows]
-    return Response(UserCardSerializer(ordered, many=True, context=skill_context(request)).data)
+    return Response(UserListSerializer(
+        ordered, many=True, context=skill_context(request, include_exchange=False)
+    ).data)
 
 
 @api_view(["PUT"])
@@ -66,7 +68,7 @@ def create_exchange_request(request):
     return Response({
         "exchange_request_id": exchange.pk,
         "target_user_id": target.pk,
-        "exchange_offered_by_me": True,
+        "exchange_offered": True,
         "notification": NotificationSerializer(notification).data if notification else None,
         "has_unread_notifications": request.user.notifications.filter(read_at__isnull=True).exists(),
     }, status=201 if created else 200)
