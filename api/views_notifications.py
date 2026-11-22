@@ -17,25 +17,15 @@ def notifications(request):
 
 @api_view(["POST"])
 def read_all_notifications(request):
-    updated = Notification.objects.filter(
+    Notification.objects.filter(
         owner=request.user, read_at__isnull=True
     ).update(read_at=timezone.now())
-    return Response({
-        "updated_count": updated,
-        "has_unread_notifications": Notification.objects.filter(
-            owner=request.user, read_at__isnull=True
-        ).exists(),
-    })
+    return Response(status=204)
 
 
 @api_view(["POST"])
 def clear_notifications(request):
-    deleted, _ = Notification.objects.filter(
+    Notification.objects.filter(
         owner=request.user, read_at__isnull=False
     ).delete()
-    return Response({
-        "deleted_count": deleted,
-        "has_unread_notifications": Notification.objects.filter(
-            owner=request.user, read_at__isnull=True
-        ).exists(),
-    })
+    return Response(status=204)
