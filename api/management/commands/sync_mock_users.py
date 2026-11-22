@@ -29,9 +29,10 @@ REQUIRED_COLUMNS = (
 )
 IMAGE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
 GENDERS = {
-    "мужской": "male", "женский": "female", "не указан": "unspecified",
-    "male": "male", "female": "female", "unspecified": "unspecified",
+    "мужской": "male", "женский": "female",
+    "male": "male", "female": "female",
 }
+UNSPECIFIED_GENDERS = {"", "не указан", "unspecified"}
 
 
 def text(value):
@@ -127,13 +128,14 @@ def load_records():
                 raise CommandError(f"Строка {row_number}: mock_id должен иметь вид user_41.")
             if mock_id in records:
                 raise CommandError(f"Повторяется mock_id {mock_id}.")
-            required = ("name", "birth_date", "gender", "city", "want_subcategories",
+            required = ("name", "birth_date", "city", "want_subcategories",
                         "teach_subcategory", "skill_title", "skill_description")
             for key in required:
                 if not text(cells[key]):
                     raise CommandError(f"Строка {row_number}: заполните {key}.")
-            gender = GENDERS.get(text(cells["gender"]).casefold())
-            if gender is None:
+            gender_text = text(cells["gender"]).casefold()
+            gender = None if gender_text in UNSPECIFIED_GENDERS else GENDERS.get(gender_text)
+            if gender is None and gender_text not in UNSPECIFIED_GENDERS:
                 raise CommandError(f"Строка {row_number}: неизвестное значение пола.")
             city_name = text(cells["city"])
             if city_name not in cities:

@@ -18,11 +18,8 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-`migrate` создаёт таблицы **и загружает 15 городов, 6 категорий и 42 подкатегории**
-через `api/migrations/0002_reference_data.py`. Миграция
-`api/migrations/0004_category_colors.py` назначает цвета шести категориям.
-Команда
-`python manage.py seed_reference` повторно сверяет эти справочники, не создавая дубликаты.
+`migrate` создаёт таблицы и заполняет справочники городов, категорий и
+подкатегорий.
 Проверка сервера: `GET http://127.0.0.1:8000/health/`.
 
 Для админки: `python manage.py createsuperuser`, затем `/admin/`.
@@ -42,6 +39,7 @@ python manage.py runserver
 за файл. В папке должен быть ровно один файл `avatar` с допустимым расширением;
 все остальные изображения считаются фотографиями навыка и упорядочиваются по
 имени файла. Строки шаблона, где заполнен только `mock_id`, пропускаются.
+В колонке `gender` пустая ячейка и «Не указан» дают `null` в API.
 
 `Profile.mock_id` — уникальный постоянный ключ мокового пользователя. Обычные
 пользователи имеют `mock_id = null`. Импорт ищет существующего пользователя по
@@ -76,7 +74,7 @@ SKILLSWAP_MOCK_PASSWORD=ваш_общий_пароль_для_моков
 ```
 
 После обновления репозитория выполните `pip install -r requirements.txt`,
-`python manage.py migrate` и нажмите Reload. При каждом запуске WSGI
+`python manage.py migrate` и только затем нажмите Reload. При каждом запуске WSGI
 синхронизация выполнится автоматически. Оставшиеся моковые пользователи сохраняют числовые
 ID и действия в приложении (например, избранное); поля профиля, навык, пароль
 и фотографии берутся из таблицы и папок заново.
@@ -163,19 +161,19 @@ Authorization: Token <token>
 }
 ```
 
-Поле `gender` принимает только строковые значения:
+Поле `gender` принимает два строковых значения или `null`:
 
 | Значение API | Вариант в форме |
 | --- | --- |
 | `male` | Мужской |
 | `female` | Женский |
-| `unspecified` | Не указан |
+| `null` | Не указан |
 
-Если пользователь выбрал «Не указан», передайте `"gender": "unspecified"`
-(или строку `unspecified` в `FormData`). Это **не `null`**: при регистрации
-поле обязательно, а при `PATCH /api/me/` его можно опустить, чтобы оставить
-прежнее значение. `null` для `gender` API не принимает; в ответах также
-возвращается `unspecified`.
+Если пользователь выбрал «Не указан», в JSON можно передать
+`"gender": null` или совсем опустить поле. В `FormData` поле `gender`
+просто не добавляйте: строка `"null"` не равна JSON `null`. В ответах
+сервер вернёт `"gender": null`. При `PATCH /api/me/` передайте JSON `null`,
+чтобы сбросить выбранный пол; если поле не передано, оно не изменится.
 
 Для формы регистрации загрузите города через `GET /api/cities/`, а категории
 и вложенные в них подкатегории — через `GET /api/categories/`.
@@ -214,7 +212,7 @@ body.append('email', email);
 body.append('password', password);
 body.append('name', name);
 body.append('birth_date', birthDate);
-body.append('gender', gender);
+if (gender) body.append('gender', gender);
 body.append('city_id', String(cityId));
 body.append('about', about);
 body.append('teach_subcategory_id', String(teachSubcategoryId));

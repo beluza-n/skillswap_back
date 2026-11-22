@@ -62,13 +62,12 @@ class Profile(models.Model):
     class Gender(models.TextChoices):
         MALE = "male", "Мужской"
         FEMALE = "female", "Женский"
-        UNSPECIFIED = "unspecified", "Не указан"
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, related_name="profile", on_delete=models.CASCADE)
     mock_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
     name = models.CharField(max_length=150)
     birth_date = models.DateField(null=True, blank=True)
-    gender = models.CharField(max_length=12, choices=Gender.choices, default=Gender.UNSPECIFIED)
+    gender = models.CharField(max_length=12, choices=Gender.choices, null=True, blank=True, default=None)
     city = models.ForeignKey(City, null=True, blank=True, on_delete=models.SET_NULL)
     about = models.TextField(blank=True)
     avatar = models.ImageField(upload_to=avatar_path, blank=True)

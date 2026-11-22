@@ -236,7 +236,7 @@ class RegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(min_length=8, write_only=True)
     name = serializers.CharField(max_length=150)
     birth_date = serializers.DateField()
-    gender = serializers.ChoiceField(choices=Profile.Gender.choices)
+    gender = serializers.ChoiceField(choices=Profile.Gender.choices, required=False, allow_null=True)
     city_id = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
     about = serializers.CharField(required=False, allow_blank=True)
     wanted_subcategory_ids = serializers.ListField(
@@ -268,7 +268,7 @@ class ProfileUpdateSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=150, required=False)
     name = serializers.CharField(max_length=150, required=False)
     birth_date = serializers.DateField(required=False, allow_null=True)
-    gender = serializers.ChoiceField(choices=Profile.Gender.choices, required=False)
+    gender = serializers.ChoiceField(choices=Profile.Gender.choices, required=False, allow_null=True)
     city_id = serializers.PrimaryKeyRelatedField(
         source="city", queryset=City.objects.all(), required=False, allow_null=True
     )

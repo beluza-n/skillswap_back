@@ -43,6 +43,8 @@ def register(request):
         "about", "teach_subcategory_id", "skill_title", "skill_description",
     ]
     payload = {field: request.data.get(field) for field in fields if field in request.data}
+    if payload.get("gender") == "":
+        payload["gender"] = None
     payload["wanted_subcategory_ids"] = _wanted_ids(request.data)
     serializer = RegistrationSerializer(data=payload)
     serializer.is_valid(raise_exception=True)
@@ -61,7 +63,7 @@ def register(request):
         profile = user.profile
         profile.name = data["name"]
         profile.birth_date = data["birth_date"]
-        profile.gender = data["gender"]
+        profile.gender = data.get("gender")
         profile.city = data["city_id"]
         profile.about = data.get("about", "")
         if avatar:
