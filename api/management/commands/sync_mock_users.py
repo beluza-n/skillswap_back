@@ -3,8 +3,9 @@
 import fcntl
 import hashlib
 import os
+import random
 import re
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 
 from django.conf import settings
@@ -13,18 +14,19 @@ from django.core.files import File
 from django.core.files.storage import default_storage
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 from openpyxl import load_workbook
 from openpyxl.utils.datetime import from_excel
 from PIL import Image, UnidentifiedImageError
 
-from api.models import City, Notification, Profile, SkillImage, SkillOffer, Subcategory
+from api.models import City, Favorite, Notification, Profile, SkillImage, SkillOffer, Subcategory
 from api.serializers import MAX_IMAGE_BYTES
 
 
 SOURCE_DIR = Path(settings.BASE_DIR) / "mock_data"
-WORKBOOK_NAME = "Моковые пользователи.xlsx"
+WORKBOOK_NAME = "mock_users.xlsx"
 REQUIRED_COLUMNS = (
-    "mock_id", "name", "birth_date", "gender", "city", "about",
+    "mock_id", "name", "birth_date", "gender", "registration_date", "city", "about",
     "want_subcategories", "teach_subcategory", "skill_title", "skill_description",
 )
 IMAGE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
@@ -37,6 +39,10 @@ UNSPECIFIED_GENDERS = {"", "не указан", "unspecified"}
 
 def text(value):
     return "" if value is None else str(value).strip()
+
+
+def reference_name(value):
+    return " ".join(text(value).split())
 
 
 def split_subcategories(value):
@@ -54,7 +60,7 @@ def split_subcategories(value):
     return [item for item in result if item]
 
 
-def parse_date(value, epoch, row_number):
+def parse_date(value, epoch, row_number, column):
     if isinstance(value, datetime):
         value = value.date()
     elif isinstance(value, (int, float)):
@@ -68,9 +74,9 @@ def parse_date(value, epoch, row_number):
             try:
                 value = datetime.strptime(value.strip(), "%d.%m.%Y").date()
             except ValueError as error:
-                raise CommandError(f"Строка {row_number}: неверная дата рождения.") from error
+                raise CommandError(f"Строка {row_number}: неверное значение {column}.") from error
     if not isinstance(value, date) or value > date.today():
-        raise CommandError(f"Строка {row_number}: неверная дата рождения.")
+        raise CommandError(f"Строка {row_number}: неверное значение {column}.")
     return value
 
 
@@ -88,7 +94,7 @@ def validate_image(path):
 
 
 def image_files(mock_id):
-    folder = SOURCE_DIR / mock_id
+    folder = SOURCE_DIR / "mock_users" / mock_id
     if not folder.is_dir():
         raise CommandError(f"Не найдена папка изображений: {folder}")
     files = sorted(path for path in folder.iterdir() if path.is_file() and not path.name.startswith("."))
@@ -109,18 +115,20 @@ def load_records():
         if "Пользователи" not in workbook:
             raise CommandError("В таблице нет листа «Пользователи».")
         sheet = workbook["Пользователи"]
-        headers = tuple(text(cell.value) for cell in sheet[2][:len(REQUIRED_COLUMNS)])
-        if headers != REQUIRED_COLUMNS:
-            raise CommandError("Заголовки строки 2 не совпадают с шаблоном таблицы.")
-        cities = {city.name: city for city in City.objects.all()}
+        headers = [text(cell.value) for cell in sheet[2]]
+        if any(headers.count(column) != 1 for column in REQUIRED_COLUMNS):
+            raise CommandError("В строке 2 должны быть все обязательные заголовки без повторов.")
+        columns = {column: headers.index(column) for column in REQUIRED_COLUMNS}
+        cities = {reference_name(city.name): city for city in City.objects.all()}
         subcategories = {}
         for subcategory in Subcategory.objects.all():
-            if subcategory.name in subcategories:
+            name = reference_name(subcategory.name)
+            if name in subcategories:
                 raise CommandError(f"Неоднозначное название подкатегории: {subcategory.name}")
-            subcategories[subcategory.name] = subcategory
+            subcategories[name] = subcategory
         records = {}
         for row_number, values in enumerate(sheet.iter_rows(min_row=3, values_only=True), start=3):
-            cells = dict(zip(REQUIRED_COLUMNS, values))
+            cells = {column: values[index] for column, index in columns.items()}
             if not any(text(cells.get(key)) for key in REQUIRED_COLUMNS if key != "mock_id"):
                 continue  # Pre-filled but otherwise empty rows are placeholders.
             mock_id = text(cells["mock_id"])
@@ -128,7 +136,7 @@ def load_records():
                 raise CommandError(f"Строка {row_number}: mock_id должен иметь вид user_41.")
             if mock_id in records:
                 raise CommandError(f"Повторяется mock_id {mock_id}.")
-            required = ("name", "birth_date", "city", "want_subcategories",
+            required = ("name", "birth_date", "registration_date", "city", "want_subcategories",
                         "teach_subcategory", "skill_title", "skill_description")
             for key in required:
                 if not text(cells[key]):
@@ -137,13 +145,15 @@ def load_records():
             gender = None if gender_text in UNSPECIFIED_GENDERS else GENDERS.get(gender_text)
             if gender is None and gender_text not in UNSPECIFIED_GENDERS:
                 raise CommandError(f"Строка {row_number}: неизвестное значение пола.")
-            city_name = text(cells["city"])
+            city_name = reference_name(cells["city"])
             if city_name not in cities:
                 raise CommandError(f"Строка {row_number}: город «{city_name}» отсутствует в справочнике.")
-            teach_name = text(cells["teach_subcategory"])
+            teach_name = reference_name(cells["teach_subcategory"])
             if teach_name not in subcategories:
                 raise CommandError(f"Строка {row_number}: неизвестная подкатегория «{teach_name}».")
-            wanted_names = split_subcategories(text(cells["want_subcategories"]))
+            wanted_names = [
+                reference_name(name) for name in split_subcategories(text(cells["want_subcategories"]))
+            ]
             if not wanted_names:
                 raise CommandError(f"Строка {row_number}: укажите желаемые подкатегории.")
             for name in wanted_names:
@@ -152,7 +162,10 @@ def load_records():
             avatar, skill_images = image_files(mock_id)
             records[mock_id] = {
                 "name": text(cells["name"]),
-                "birth_date": parse_date(cells["birth_date"], workbook.epoch, row_number),
+                "birth_date": parse_date(cells["birth_date"], workbook.epoch, row_number, "birth_date"),
+                "registration_date": parse_date(
+                    cells["registration_date"], workbook.epoch, row_number, "registration_date"
+                ),
                 "gender": gender,
                 "city": cities[city_name],
                 "about": text(cells["about"]),
@@ -205,6 +218,7 @@ class Command(BaseCommand):
                 )
             created_files = set()
             added = updated = 0
+            mock_user_ids = []
             try:
                 with transaction.atomic():
                     for mock_id, item in records.items():
@@ -224,8 +238,13 @@ class Command(BaseCommand):
                         user.is_active = True
                         user.is_staff = False
                         user.is_superuser = False
+                        user.date_joined = timezone.make_aware(
+                            datetime.combine(item["registration_date"], time.min),
+                            timezone.get_current_timezone(),
+                        )
                         user.set_password(password)
                         user.save()
+                        mock_user_ids.append(user.pk)
                         profile.mock_id = mock_id
                         profile.name = item["name"]
                         profile.birth_date = item["birth_date"]
@@ -261,6 +280,21 @@ class Command(BaseCommand):
                             exchange_request__target_user_id__in=stale_user_ids
                         ).delete()
                         User.objects.filter(pk__in=stale_user_ids).delete()
+                    # Refresh only mock-to-mock likes. Real users' likes remain intact.
+                    Favorite.objects.filter(
+                        owner_id__in=mock_user_ids, target_user_id__in=mock_user_ids
+                    ).delete()
+                    rng = random.SystemRandom()
+                    max_likes = (len(mock_user_ids) - 1) // 5 if mock_user_ids else 0
+                    mock_likes = []
+                    for owner_id in mock_user_ids:
+                        candidates = [user_id for user_id in mock_user_ids if user_id != owner_id]
+                        count = rng.randint(0, max_likes)
+                        mock_likes.extend(
+                            Favorite(owner_id=owner_id, target_user_id=target_id)
+                            for target_id in rng.sample(candidates, count)
+                        )
+                    Favorite.objects.bulk_create(mock_likes)
             except Exception:
                 for name in created_files:
                     default_storage.delete(name)
@@ -276,5 +310,5 @@ class Command(BaseCommand):
                     default_storage.delete(name)
             self.stdout.write(self.style.SUCCESS(
                 f"Моковые пользователи: добавлено {added}, обновлено {updated}, "
-                f"удалено {len(stale_user_ids)}."
+                f"удалено {len(stale_user_ids)}, моковых лайков {len(mock_likes)}."
             ))

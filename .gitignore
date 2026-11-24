@@ -7,4 +7,4 @@ staticfiles/
 .env
 .mock_users_sync.lock
 .pytest_cache/
-.~lock
+.~lock*
