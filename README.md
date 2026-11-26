@@ -113,7 +113,7 @@ Authorization: Token <token>
 | POST | `auth/register/` | нет | Пользователь, его навык и токен |
 | POST | `auth/login/` | нет | `{token, user}` |
 | POST | `auth/logout/` | да | Удалить токен |
-| GET, PATCH | `me/` | да | Свой профиль, включая `has_unread_notifications` |
+| GET, PATCH | `me/` | да | Свой профиль, включая `city_id` и `has_unread_notifications` |
 | GET | `cities/` | нет | Список городов |
 | GET | `categories/` | нет | Категории с подкатегориями |
 | GET | `subcategories/` | нет | Все подкатегории с `category_id` |
@@ -253,7 +253,8 @@ await fetch(`${API_URL}/auth/register/`, { method: 'POST', body });
 и `exchange_offered`. В ответах пользователей и навыка нет
 `skill_offer.created_at`: дата для раздела «Новое» относится к регистрации
 пользователя. Публичные ответы содержат возраст `age`, но не дату рождения
-`birth_date`. Собственная дата рождения есть в `GET /api/me/`, где она нужна
+`birth_date`. `GET /api/me/` и ответ `PATCH /api/me/` содержат `city_id`
+(число или `null`) и собственную дату рождения `birth_date`, которые нужны
 для редактирования профиля. Авторизованный фронт должен передавать токен и в GET-запросах,
 чтобы `is_liked` и `exchange_offered` отражали состояние текущего
 пользователя. У гостя оба поля `false`.

@@ -91,12 +91,13 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
 
 class UserPrivateSerializer(UserPublicSerializer):
+    city_id = serializers.IntegerField(source="profile.city_id", read_only=True)
     birth_date = serializers.DateField(source="profile.birth_date", read_only=True)
     has_unread_notifications = serializers.SerializerMethodField()
 
     class Meta(UserPublicSerializer.Meta):
         fields = UserPublicSerializer.Meta.fields + [
-            "email", "birth_date", "has_unread_notifications",
+            "email", "birth_date", "city_id", "has_unread_notifications",
         ]
 
     def get_has_unread_notifications(self, obj):
